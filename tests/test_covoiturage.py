@@ -114,3 +114,96 @@ def passager_peut_reserver_plusieurs_trajets_differents(trajet_valide):
     )
 
     assert res_autre_trajet.id is not None
+    
+    
+
+
+
+# test des pages 
+
+@pytest.fixture
+def trajet_parti(db):
+    return Trajet.objects.create(
+        conducteur="Karim",
+        ville_depart="Dakar",
+        ville_arrivee="Saint-Louis",
+        date_depart="2026-10-22",
+        heure_depart="07:00",
+        nbr_place=20,
+        prix_place=15000,
+    )
+
+
+@pytest.fixture
+def trajet_proche(db):
+    return Trajet.objects.create(
+        conducteur="Awa",
+        ville_depart="Dakar",
+        ville_arrivee="Thiès",
+        date_depart="2026-10-24",
+        heure_depart="08:00",
+        nbr_place=15,
+        prix_place=5000,
+    )
+
+
+@pytest.fixture
+def trajet_lointain(db):
+    return Trajet.objects.create(
+        conducteur="Moussa",
+        ville_depart="Dakar",
+        ville_arrivee="Ziguinchor",
+        date_depart="2026-11-14",
+        heure_depart="07:00",
+        nbr_place=30,
+        prix_place=35000,
+    )
+
+
+@pytest.fixture
+def trajet_avec_reservations(db):
+    t = Trajet.objects.create(
+        conducteur="Awa",
+        ville_depart="Dakar",
+        ville_arrivee="Thiès",
+        date_depart="2026-10-24",
+        heure_depart="08:00",
+        nbr_place=15,
+        prix_place=5000,
+    )
+    Reservation.objects.create(trajet=t, passager="Fatou", nbr_place=2)
+    Reservation.objects.create(trajet=t, passager="Ibra", nbr_place=1)
+    return t
+
+
+def test_liste_ne_montre_que_les_trajets_a_venir(client, trajet_parti, trajet_proche):
+    resp = client.get("/trajets/")
+    assert resp.status_code == 200
+    assert trajet_parti.ville_arrivee not in resp.text
+    assert trajet_proche.ville_arrivee in resp.text
+
+
+def test_liste_trie_du_plus_proche_au_plus_lointain(client, trajet_proche, trajet_lointain):
+    resp = client.get("/trajets/")
+    pos_proche = resp.text.find(trajet_proche.ville_arrivee)
+    pos_lointain = resp.text.find(trajet_lointain.ville_arrivee)
+    assert pos_proche < pos_lointain
+
+
+def test_page_affiche_infos_trajet(client, trajet_avec_reservations):
+    resp = client.get(f"/trajets/{trajet_avec_reservations.pk}/")
+    assert resp.status_code == 200
+    assert trajet_avec_reservations.ville_depart in resp.text
+    assert trajet_avec_reservations.ville_arrivee in resp.text
+    assert trajet_avec_reservations.conducteur in resp.text
+
+
+def test_page_affiche_reservations(client, trajet_avec_reservations):
+    resp = client.get(f"/trajets/{trajet_avec_reservations.pk}/")
+    assert "Fatou" in resp.text
+    assert "Ibra" in resp.text
+
+
+def test_page_trajet_inconnu_retourne_404(client):
+    resp = client.get("/trajets/9999/")
+    assert resp.status_code == 404   
